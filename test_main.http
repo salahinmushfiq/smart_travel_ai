@@ -13,5 +13,5 @@ POST http://127.0.0.1:8000/chat/
 Content-Type: application/json
 
 {
-  "question": "Tell me about Cox's Bazar"
+  "question": "Tell me about hills in Bangladesh"
 }

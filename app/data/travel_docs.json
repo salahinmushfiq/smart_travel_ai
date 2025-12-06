@@ -1,5 +1,5 @@
 [
-    {"title": "Cox's Bazar", "content": "Cox's Bazar is famous for its long beach. Cheapest tours start at $50/day."},
-    {"title": "Bandarban", "content": "Bandarban is a hill district. Tours start at $60/day with trekking options."},
-    {"title": "Sundarbans", "content": "Sundarbans is famous for mangrove forests and tiger safaris."}
+    {"id": "doc1","title": "Cox's Bazar", "content": "Cox's Bazar is famous for its long beach. Cheapest tours start at $50/day."},
+    {"id": "doc2","title": "Bandarban", "content": "Bandarban is a hill district. Tours start at $60/day with trekking options."},
+    {"id": "doc3","title": "Sundarbans", "content": "Sundarbans is famous for mangrove forests and tiger safaris."}
 ]
