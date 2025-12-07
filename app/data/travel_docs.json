@@ -1,5 +1,37 @@
 [
-    {"id": "doc1","title": "Cox's Bazar", "content": "Cox's Bazar is famous for its long beach. Cheapest tours start at $50/day."},
-    {"id": "doc2","title": "Bandarban", "content": "Bandarban is a hill district. Tours start at $60/day with trekking options."},
-    {"id": "doc3","title": "Sundarbans", "content": "Sundarbans is famous for mangrove forests and tiger safaris."}
+  {
+    "id": "doc1",
+    "title": "Cox's Bazar",
+    "content": "Cox's Bazar is famous for its long beach, sea waves, and beach resorts. Cheapest tours start at $50/day."
+  },
+  {
+    "id": "doc2",
+    "title": "Bandarban",
+    "content": "Bandarban is a beautiful hill district with lush green mountains, waterfalls, and trekking opportunities. Tours start at $60/day."
+  },
+  {
+    "id": "doc3",
+    "title": "Sundarbans",
+    "content": "Sundarbans is the largest mangrove forest in the world, famous for its tiger safaris and rich biodiversity."
+  },
+  {
+    "id": "doc4",
+    "title": "Rangamati",
+    "content": "Rangamati is a serene hill district in the Chittagong Hill Tracts, known for Kaptai Lake, indigenous cultures, and scenic viewpoints."
+  },
+  {
+    "id": "doc5",
+    "title": "Khagrachhari",
+    "content": "Khagrachhari offers beautiful hills, rivers, and waterfalls, making it perfect for short trekking trips and cultural exploration."
+  },
+  {
+    "id": "doc6",
+    "title": "Sylhet",
+    "content": "Sylhet is famous for tea gardens, rolling hills, and natural landmarks like Jaflong and Ratargul Swamp Forest."
+  },
+  {
+    "id": "doc7",
+    "title": "National Parks in Hill Districts",
+    "content": "Several hill districts including Bandarban, Rangamati, and Khagrachhari host national parks like Sangu Wildlife Sanctuary and Kaptai National Park, offering hiking, wildlife spotting, and picnic areas."
+  }
 ]

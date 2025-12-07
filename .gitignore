@@ -20,3 +20,6 @@ Thumbs.db
 # Pytest / coverage
 .coverage
 htmlcov/
+
+# ChromaDB persistence files
+chroma_db/
