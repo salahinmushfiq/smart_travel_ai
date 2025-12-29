@@ -1,49 +1,86 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List
 import json
-
+from uuid import uuid4
+from typing import Optional
 from app.utils.vector_db import add_documents_to_db, query_similar_docs
-from app.utils.llm_helpers import generate_answer
+from app.utils.llm_helpers import generate_answer, build_prompt
+from app.memory.chat_memory import ChatMemory
+
+# In-memory chat session manager
+# (Later replaceable with Redis / DB)
+chat_memory = ChatMemory()
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
 
 # Request body
 class ChatRequest(BaseModel):
     question: str
-    top_k: int = 3
+    session_id: Optional[str] = None  # Enables conversation continuation
+    top_k: int = 3  # Number of relevant documents to retrieve
 
 
-# Load sample travel documents once
+# ---- Load Knowledge Base Once ----
+# Travel documents are loaded only at startup
 with open("app/data/travel_docs.json", "r", encoding="utf-8") as f:
     travel_docs = json.load(f)
 
-# Add docs to ChromaDB (first time or on restart)
+# Store documents in vector DB (Chroma)
 add_documents_to_db(travel_docs)
 
 
-@router.post("/", response_model=dict)
+@router.post("/")
 def chat_endpoint(request: ChatRequest):
     """
-    Query LLM using top-k documents retrieved from ChromaDB.
-    """
-    user_question = request.question
-    top_docs: List[str] = query_similar_docs(user_question, n_results=request.top_k)
+    Main chat endpoint.
 
-    if not top_docs:
+    Responsibilities:
+    - Maintain session-based conversation memory
+    - Retrieve relevant documents (RAG)
+    - Build prompt
+    - Call LLM
+    - Store conversation history
+    """
+    
+    # If frontend does not provide a session_id, create one
+    session_id = request.session_id or str(uuid4())
+    user_question = request.question
+    
+    # Fetch conversation history for this session
+    history = chat_memory.get_history(session_id)
+
+    try:
+	# ---- Vector Search (Retrieval) ----
+        top_docs = query_similar_docs(user_question, n_results=request.top_k)
+        
+        # ---- Prompt Construction ----
+        prompt = build_prompt(
+            question=user_question,
+            history=history,
+            context_docs=top_docs
+        )
+        
+        # ---- LLM Call ----
+        answer = generate_answer(prompt)
+         
+        # ---- Persist Conversation Memory ----
+        chat_memory.add_message(session_id, "user", user_question)
+        chat_memory.add_message(session_id, "assistant", answer)
+
         return {
-            "question": user_question,
-            "retrieved_docs": [],
-            "context": "",
-            "answer": "No relevant documents found."
+            "status": "success",
+            "session_id": session_id,
+	        "question": user_question,
+            "answer": answer,
+            "retrieved_docs": top_docs,
+            "history_length": len(chat_memory.get_history(session_id))
         }
 
-    context = "\n".join(top_docs)
-    answer = generate_answer(context, user_question)
-
-    return {
-        "question": user_question,
-        "retrieved_docs": top_docs,
-        "context": context,
-        "answer": answer
-    }
+    except Exception as e:
+        print(f"Chat endpoint error: {e}")
+        return {
+            "status": "error",
+            "session_id": session_id,
+            "answer": "Sorry, something went wrong."
+        }

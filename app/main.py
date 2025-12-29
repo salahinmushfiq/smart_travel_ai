@@ -9,7 +9,7 @@ app = FastAPI(title="Smart Travel AI Assistant")
 # Allow your frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://localhost:5173/", "http://localhost:5173/"],  # Allow all origins for live deployment
+    allow_origins=["*"],  # Allow all origins for live deployment
     allow_credentials=True,
     allow_methods=["*"],  # Allow POST, GET, etc.
     allow_headers=["*"],  # Allow all headers

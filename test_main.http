@@ -9,7 +9,16 @@ Accept: application/json
 #Accept: application/json
 
 ### Test POST chat
-POST http://127.0.0.1:8000/chat/
+#POST http://127.0.0.1:8000/chat/
+#Content-Type: application/json
+#
+#{
+#  "question": "Tell me about hills in Bangladesh"
+#}
+
+
+### Test POST chat
+POST http://127.0.0.1:8001/chat/
 Content-Type: application/json
 
 {
