@@ -1,3 +1,4 @@
+# apps/utils/llm_helpers.py
 import ollama
 from typing import List
 
@@ -28,30 +29,27 @@ def generate_answer(prompt: str, model_name: str = "llama3.1:8b") -> str:
         return "Sorry, AI failed to generate a response."
 
 
-def build_prompt(question: str, history: list, context_docs: list):
+def build_prompt(question: str, history: list, context_docs: list, summary: str = ""):
     """
-    Builds a SINGLE, consistent prompt for the LLM.
+    Builds a SINGLE, token-efficient prompt for the LLM.
 
-    Why this function exists:
-    - Centralizes prompt logic (important for maintainability)
-    - Ensures conversation history is preserved
-    - Prevents prompt duplication across routes
+    - Injects old conversation summary (if available)
+    - Injects recent conversation
+    - Adds retrieved documents
     """
-
-    # System-level instruction to control LLM behavior
     prompt = "You are a helpful travel assistant.\n\n"
 
-    # ---- Conversation Memory Injection ----
-    # Past user/assistant messages are injected here
-    # This is what enables multi-turn conversation continuity
+    # ---- Conversation summary ----
+    if summary:
+        prompt += f"Conversation summary:\n{summary}\n\n"
+
+    # ---- Recent conversation ----
     if history:
-        prompt += "Conversation so far:\n"
+        prompt += "Recent conversation:\n"
         for msg in history:
             prompt += f"{msg['role'].capitalize()}: {msg['content']}\n"
 
     # ---- Retrieved Knowledge Context ----
-    # Documents retrieved from vector DB are added here
-    # This grounds the LLM response in factual data (RAG)
     if context_docs:
         prompt += "\nRelevant Information:\n"
         for doc in context_docs:

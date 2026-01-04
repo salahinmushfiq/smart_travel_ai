@@ -14,23 +14,27 @@ It retrieves the most relevant travel documents for a user question and generate
 - Generate AI answers with **LLaMA3 (Ollama)** using retrieved context
 - **CORS-enabled** API for frontend integration
 - Deployment-ready with configurable ports
-- Session-based conversation memory (multi-turn chat)
-- Maintains last N turns per session to control memory size
-- Automatic conversation history injection into prompts
-- Resume conversations using session_id
+- Session-based conversation memory with Redis (multi-turn chat)
+- Maintains last N turns per session to control short-term context
+- Automatic long-term memory summarization using the LLM (background process)
+- Token-efficient prompt construction (summary + recent turns)
+- Resume conversations using session_id (persistent across restarts)
+- Production-ready memory layer (Redis-backed)
 ---
 
 ## ⚙️ Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| Backend | Python 3.11+ | Main programming language |
-| Web Framework | FastAPI | REST API for user requests |
-| Vector DB | ChromaDB | Persistent storage of embeddings |
-| NLP / Embeddings | SentenceTransformers (`all-MiniLM-L6-v2`) | Convert documents & queries into vectors |
-| AI Model | LLaMA3 via Ollama | Generate natural language responses |
+| Layer              | Technology | Purpose |
+|--------------------|------------|---------|
+| Backend            | Python 3.11+ | Main programming language |
+| Web Framework      | FastAPI | REST API for user requests |
+| Vector DB          | ChromaDB | Persistent storage of embeddings |
+| NLP / Embeddings   | SentenceTransformers (`all-MiniLM-L6-v2`) | Convert documents & queries into vectors |
+| AI Model           | LLaMA3 via Ollama | Generate natural language responses |
 | Request Validation | Pydantic | Ensure API request structure is correct |
-| Deployment | Uvicorn | ASGI server to run FastAPI app |
+| Deployment         | Uvicorn | ASGI server to run FastAPI app |
+| Memory Store       | Redis | Persistent session memory & summaries |
+
 
 ---
 
@@ -72,6 +76,7 @@ uvicorn app.main:app --reload
 # Server runs at http://127.0.0.1:8000/
 ```
 2. Health check endpoint:
+
 ```bash
 GET http://127.0.0.1:8000/
 Response: {"message": "Hello! Smart Travel AI Assistant backend is running."}
@@ -135,14 +140,22 @@ history_length → number of messages in this session (user + assistant)
 context_docs → optional array of structured retrieved documents (title, content, source)
 ## 🧠 Conversation Memory
 
-The backend supports multi-turn conversations using session-based memory.
+The backend implements a **two-layer memory system**:
 
-- Each chat session is identified by a `session_id`
-- Conversation history is stored server-side
-- History is injected into the LLM prompt automatically
-- Only the last N turns are kept to control context size
+### Short-Term Memory
+- Stores the last N user/assistant turns per session
+- Injected directly into the LLM prompt for conversational continuity
 
-This enables users to pause, resume, and continue conversations naturally.
+### Long-Term Memory
+- Older messages are automatically summarized using the LLM
+- Summaries preserve key facts, preferences, and decisions
+- Stored separately in Redis for token efficiency
+
+### Benefits
+- Prevents prompt bloat
+- Enables long conversations
+- Session memory persists across server restarts
+- Optimized for production-scale usage
 
 ## 🧠 How It Works (Conceptual Flow)
 
@@ -150,15 +163,18 @@ This enables users to pause, resume, and continue conversations naturally.
 flowchart TD
     A[User Question] -->|POST /chat/| B[FastAPI Endpoint]
     B --> C{Check Session ID}
-    C -->|Exists| D[Retrieve conversation history]
-    C -->|New| E[Create new session]
-    D & E --> F[Convert Question to Embedding -> For vector DB query] 
-    F --> G[Query ChromaDB for Top-K Similar Docs]
-    G --> H[Build Prompt: History + Top-K Docs + Current Question]
-    H --> I[LLaMA3 Model via Ollama]
+    C -->|Existing| D[Load history + summary from Redis]
+    C -->|New| E[Initialize Redis session]
+    D & E --> S{Exceeds short-term limit?}
+    S -->|Yes| T[Summarize older turns via LLaMA3 → Store summary in Redis]
+    S -->|No| F
+    T --> F[Embed Question for Vector Search]
+    F --> G[Query ChromaDB for Top-K Docs]
+    G --> H[Build Prompt: Summary + Recent Turns + Docs + Question]
+    H --> I[LLaMA3 via Ollama]
     I --> J[Generate Answer]
-    J --> K[Store user & assistant messages in session memory]
-    K --> L[Return Response JSON with session_id, answer, retrieved_docs, history_length]
+    J --> K[Store user and assistant turns in Redis]
+    K --> L[Return response with session id answer and history length]
 
     style A fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#1e3a8a
     style B fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e3a8a
