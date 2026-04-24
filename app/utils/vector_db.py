@@ -1,3 +1,4 @@
+# app/utils/vector_db.py
 import chromadb
 from app.utils.embeddings import embed_documents
 from typing import List

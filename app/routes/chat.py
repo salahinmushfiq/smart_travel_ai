@@ -60,16 +60,24 @@ def chat_endpoint(request: ChatRequest):
 
         # Fetch summary of older turns
         summary = chat_memory.get_summary(session_id)
+
+        # Fetch structured session info per session via session id
+        session_info = chat_memory.get_session_info(session_id)
+
         # ---- Prompt Construction ----
         prompt = build_prompt(
             question=user_question,
             history=history,
             context_docs=top_docs,
-            summary=summary
+            summary=summary,
+            session_info=session_info
         )
 
         # ---- LLM Call ----
-        answer = generate_answer(prompt)
+        try:
+            answer = generate_answer(prompt)
+        except Exception:
+            answer = "AI temporarily unavailable."
 
         # ---- Persist Conversation Memory ----
         chat_memory.add_message(session_id, "user", user_question)

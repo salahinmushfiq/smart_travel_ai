@@ -1,194 +1,233 @@
 # Smart Travel AI Assistant - FastAPI Backend
 
-**Semantic search and AI-powered travel assistant backend** built with **FastAPI**.  
-It retrieves the most relevant travel documents for a user question and generates **context-aware AI responses** using a local LLaMA3 model via Ollama.
+**Production-ready AI travel assistant backend** built with **FastAPI**, using a **Retrieval-Augmented Generation (RAG)** pipeline, **session-based memory**, and **Groq-hosted LLMs**.
+
+This system retrieves relevant travel data, maintains conversational context, and generates **grounded, low-hallucination responses**.
 
 ---
 
 ## 🛠 Features
 
-- Load travel documents from JSON (`travel_docs.json`)
-- Compute **document embeddings** with `all-MiniLM-L6-v2` (SentenceTransformers)
-- Store embeddings in **ChromaDB** for fast similarity search
-- Retrieve top-K relevant documents using **cosine similarity**
-- Generate AI answers with **LLaMA3 (Ollama)** using retrieved context
-- **CORS-enabled** API for frontend integration
-- Deployment-ready with configurable ports
-- Session-based conversation memory with Redis (multi-turn chat)
-- Maintains last N turns per session to control short-term context
-- Automatic long-term memory summarization using the LLM (background process)
-- Token-efficient prompt construction (summary + recent turns)
-- Resume conversations using session_id (persistent across restarts)
-- Production-ready memory layer (Redis-backed)
+* 🔍 **RAG Pipeline**
+
+  * Semantic search over travel documents using embeddings
+  * Top-K retrieval via ChromaDB
+
+* 🧠 **Conversational Memory (Redis-backed)**
+
+  * Short-term memory (recent turns)
+  * Long-term memory (LLM-generated summaries)
+  * Session persistence across restarts
+
+* ⚡ **Groq LLM Integration (Free API)**
+
+  * LLaMA3 / Mixtral support
+  * Ultra-fast inference
+  * Robust error handling (401, 403, 404, 429, 5xx)
+
+* 🎯 **Strict Prompt Engineering**
+
+  * Prevents hallucination
+  * Forces grounded answers from retrieved context
+
+* 🧩 **Modular Architecture**
+
+  * LLM layer isolated
+  * RAG pipeline independent
+  * Easily swappable providers
+
+* 🌐 **Frontend-ready API**
+
+  * Session-based chat (`session_id`)
+  * Clean JSON responses
+
 ---
 
 ## ⚙️ Tech Stack
 
-| Layer              | Technology | Purpose |
-|--------------------|------------|---------|
-| Backend            | Python 3.11+ | Main programming language |
-| Web Framework      | FastAPI | REST API for user requests |
-| Vector DB          | ChromaDB | Persistent storage of embeddings |
-| NLP / Embeddings   | SentenceTransformers (`all-MiniLM-L6-v2`) | Convert documents & queries into vectors |
-| AI Model           | LLaMA3 via Ollama | Generate natural language responses |
-| Request Validation | Pydantic | Ensure API request structure is correct |
-| Deployment         | Uvicorn | ASGI server to run FastAPI app |
-| Memory Store       | Redis | Persistent session memory & summaries |
-
+| Layer           | Technology                                |
+| --------------- | ----------------------------------------- |
+| Backend         | Python 3.11+                              |
+| Framework       | FastAPI                                   |
+| Vector Database | ChromaDB                                  |
+| Embeddings      | SentenceTransformers (`all-MiniLM-L6-v2`) |
+| LLM Provider    | Groq API (LLaMA3 / Mixtral)               |
+| Memory Store    | Redis                                     |
+| Validation      | Pydantic                                  |
+| Server          | Uvicorn                                   |
 
 ---
 
 ## 📂 Project Structure
 
+```
 app/
-├─ main.py # FastAPI entrypoint
+├─ main.py
 ├─ routes/
-│ └─ chat.py # /chat/ endpoint
+│  └─ chat.py
 ├─ utils/
-│ ├─ embeddings.py # Document embedding functions
-│ ├─ vector_db.py # ChromaDB integration
-│ └─ llm_helpers.py # Ollama LLaMA3 interaction
+│  ├─ embeddings.py
+│  ├─ vector_db.py
+│  └─ llm_helpers.py   # Groq API + prompt builder
 ├─ memory/
-│  └─ chat_memory.py  # Session-based chat memory
+│  └─ chat_memory.py   # Redis session memory
 ├─ data/
-│ └─ travel_docs.json # Source travel documents
-└─ __init__.py
-requirements.txt # Dependencies
-
+│  └─ travel_docs.json
+```
 
 ---
 
 ## 🔧 Installation
 
-1. Clone the repository:
-
 ```bash
 git clone https://github.com/salahinmushfiq/smart_travel_ai.git
 cd smart_travel_ai
-# Create and activate a Python virtual environment:
+
 python -m venv venv
-# Linux / Mac
-source venv/bin/activate
-# Windows
-venv\Scripts\activate
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate      # Windows
+
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-# Server runs at http://127.0.0.1:8000/
 ```
-2. Health check endpoint:
 
-```bash
-GET http://127.0.0.1:8000/
-Response: {"message": "Hello! Smart Travel AI Assistant backend is running."}
-📡 API Endpoints
-POST /chat/
-Send a user question to the AI assistant.
+Server runs at:
 
-Request JSON:
+```
+http://127.0.0.1:8000/
+```
 
-json
-Copy code
+---
+
+## 🔐 Environment Variables
+
+Create a `.env` file:
+
+```env
+GROQ_API_KEY=your_api_key_here
+GROQ_MODEL=llama3-8b-8192
+```
+
+---
+
+## 📡 API
+
+### POST `/chat/`
+
+```json
 {
-  "question": "Tell me about beaches in Bangladesh",
-  "session_id": "optional-session-id",
+  "question": "Tell me about hills in Bangladesh",
+  "session_id": "optional",
   "top_k": 3
 }
-session_id (optional): continues an existing conversation if provided; otherwise, a new session is created. 
-
-question: user query (string)
-
-top_k: number of top documents to retrieve (default = 3)
-
-Response JSON:
-
-json
-Copy code
-{
-  "question": "Tell me about beaches in Bangladesh",
-  "session_id": "generated-session-id",
-  "retrieved_docs": [
-    "Cox's Bazar is famous for long beaches.",
-    "Patenga Beach is near Chittagong city.",
-    "Inani Beach is known for coral stones."
-  ],
-  "answer": "Cox's Bazar, Patenga, and Inani are popular beaches in Bangladesh. Cox's Bazar is the longest natural beach in the world.",
-  "history_length": 4,
-  "context_docs": [
-  {
-    "title": "Cox's Bazar Beach",
-    "content": "Cox's Bazar is famous for long beaches and is the longest natural beach in the world.",
-    "source": "travel_docs.json"
-  },
-  {
-    "title": "Patenga Beach",
-    "content": "Patenga Beach is near Chittagong city and popular among tourists.",
-    "source": "travel_docs.json"
-  }
-]
-}
-
-
 ```
-Explanation of fields:
 
-retrieved_docs → Top-K documents retrieved from ChromaDB
+### Response
 
-answer → AI-generated response, grounded in retrieved documents
+```json
+{
+  "status": "success",
+  "session_id": "uuid",
+  "answer": "...",
+  "retrieved_docs": [...],
+  "history_length": 4
+}
+```
 
-history_length → number of messages in this session (user + assistant)
+---
 
-context_docs → optional array of structured retrieved documents (title, content, source)
-## 🧠 Conversation Memory
-
-The backend implements a **two-layer memory system**:
+## 🧠 Memory Architecture
 
 ### Short-Term Memory
-- Stores the last N user/assistant turns per session
-- Injected directly into the LLM prompt for conversational continuity
+
+* Last N turns stored in Redis
+* Injected into prompt
 
 ### Long-Term Memory
-- Older messages are automatically summarized using the LLM
-- Summaries preserve key facts, preferences, and decisions
-- Stored separately in Redis for token efficiency
 
-### Benefits
-- Prevents prompt bloat
-- Enables long conversations
-- Session memory persists across server restarts
-- Optimized for production-scale usage
+* Older messages summarized using LLM
+* Stored separately for token efficiency
 
-## 🧠 How It Works (Conceptual Flow)
+### Why this matters
+
+* Prevents prompt overflow
+* Enables long conversations
+* Keeps responses relevant
+
+---
+
+## 🔄 System Flow (FULL)
 
 ```mermaid
 flowchart TD
-    A[User Question] -->|POST /chat/| B[FastAPI Endpoint]
-    B --> C{Check Session ID}
-    C -->|Existing| D[Load history + summary from Redis]
-    C -->|New| E[Initialize Redis session]
-    D & E --> S{Exceeds short-term limit?}
-    S -->|Yes| T[Summarize older turns via LLaMA3 → Store summary in Redis]
-    S -->|No| F
-    T --> F[Embed Question for Vector Search]
-    F --> G[Query ChromaDB for Top-K Docs]
-    G --> H[Build Prompt: Summary + Recent Turns + Docs + Question]
-    H --> I[LLaMA3 via Ollama]
-    I --> J[Generate Answer]
-    J --> K[Store user and assistant turns in Redis]
-    K --> L[Return response with session id answer and history length]
 
-    style A fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#1e3a8a
-    style B fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e3a8a
-    style C fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#1e3a8a
-    style D fill:#f0fdf4,stroke:#10b981,stroke-width:2px,color:#1e3a8a
-    style E fill:#f0fdf4,stroke:#10b981,stroke-width:2px,color:#1e3a8a
-    style F fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px,color:#1e3a8a
-    style G fill:#fef2f2,stroke:#ef4444,stroke-width:2px,color:#1e3a8a
-    style H fill:#e0f2fe,stroke:#0ea5e9,stroke-width:2px,color:#1e3a8a
-    style I fill:#e0f2fe,stroke:#0ea5e9,stroke-width:2px,color:#1e3a8a
-    style J fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#1e3a8a
-    style K fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#1e3a8a
-    style L fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e3a8a
+A[User Question] --> B[FastAPI /chat]
 
-    click B href "https://fastapi.tiangolo.com" "FastAPI Docs"
-    click F href "https://ollama.com/docs" "Ollama LLaMA3 Docs"
-    click D href "https://www.trychroma.com/docs" "ChromaDB Docs"
+B --> C{Session Exists?}
+C -->|Yes| D[Load History + Summary from Redis]
+C -->|No| E[Create New Session]
+
+D --> F[Check Memory Size]
+F -->|Too Large| G[Summarize Old Messages via LLM → Store in Redis]
+F -->|OK| H
+
+E --> H
+
+H --> I[Embed Query]
+I --> J[ChromaDB Search]
+J --> K[Retrieve Top-K Docs]
+
+K --> L[Build Prompt]
+L --> M[Groq LLM API]
+
+M --> N[Generate Answer]
+
+N --> O[Store New Messages in Redis]
+O --> P[Return Response]
+```
+
+---
+
+## 🧩 Architecture Principles
+
+* 🔹 LLM layer is **stateless & replaceable**
+* 🔹 RAG is **data-source independent**
+* 🔹 Memory is **externalized (Redis)**
+* 🔹 Services are **loosely coupled**
+
+---
+
+## 🚀 Future Roadmap
+
+* 🔄 Django Tour API → RAG ingestion layer
+* 🌍 Web search integration (Tavily / SerpAPI)
+* ⏱ Background sync (Celery)
+* ☁️ Free-tier deployment (Render / Fly.io)
+
+---
+
+## 📌 Current Status
+
+* ✅ Groq API integration complete
+* ✅ RAG pipeline stable
+* ✅ Redis memory system active
+* ✅ Chat sessions working
+* 🚀 Ready for deployment phase
+
+---
+
+## ⚠️ Known Limitations
+
+* Static dataset (`travel_docs.json`) used as primary knowledge source
+* No real-time data sync with external APIs yet
+* No web search augmentation (planned)
+
+---
+
+## 🧠 What This Project Demonstrates
+
+* End-to-end RAG system design
+* Real-world LLM integration (API-based)
+* Memory-augmented conversational AI
+* Scalable backend architecture
+* Production-ready engineering patterns

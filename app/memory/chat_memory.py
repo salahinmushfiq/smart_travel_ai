@@ -1,3 +1,4 @@
+#app/memory/chat_memory
 import json
 from typing import List, Dict
 from app.utils.redis_client import redis_client
@@ -40,6 +41,15 @@ class ChatMemory:
 
     def get_summary(self, session_id: str) -> str:
         return redis_client.get(self._summary_key(session_id)) or ""
+
+    def get_session_info(self, session_id: str) -> dict:
+        """Retrieve structured session info"""
+        raw = redis_client.hgetall(f"chat:session:{session_id}")
+        return {k: json.loads(v) for k, v in raw.items()} if raw else {}
+
+    def update_session_info(self, session_id: str, field: str, value):
+        """Add or update structured session info in Redis"""
+        redis_client.hset(f"chat:session:{session_id}", field, json.dumps(value))
 
     # ---------- Internal ----------
     def _update_summary(self, session_id: str):
