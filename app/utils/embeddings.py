@@ -5,20 +5,6 @@ import torch
 # Load model once
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-
-# [number_of_docs] x [embedding_dimension]
-# 5 documents → shape = 5 × 384
-# Model	Embedding Dimension
-# all-MiniLM-L6-v2	384
-# all-MiniLM-L12-v2	768
-# mpnet-base-v2	768
-# bge-base-en	768
-# bge-large-en	1024
-# text-embedding-3-small (OpenAI)	1536
-# text-embedding-3-large (OpenAI)	3072
-# model decides embedding_dimension
-# Precompute embeddings for your documents
-# in this case [number_of_docs] x 384 for all-MiniLM-L6-v2
 def embed_documents(doc_texts: list):
     return model.encode(doc_texts, convert_to_tensor=True)
 

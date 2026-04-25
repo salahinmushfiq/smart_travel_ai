@@ -1,26 +1,24 @@
-# Test your FastAPI endpoints
+### Root check
+GET http://127.0.0.1:8001/
 
-GET http://127.0.0.1:8000/
-Accept: application/json
+### Django data source
+GET http://127.0.0.1:8000/api/tours/public/
 
-###
-
-#GET http://127.0.0.1:8000/hello/User
-#Accept: application/json
-
-### Test POST chat
-#POST http://127.0.0.1:8000/chat/
-#Content-Type: application/json
-#
-#{
-#  "question": "Tell me about hills in Bangladesh"
-#}
-
-
-### Test POST chat
+### Chat test 1
 POST http://127.0.0.1:8001/chat/
 Content-Type: application/json
 
 {
   "question": "Tell me about hills in Bangladesh"
+}
+
+### Chat test 2 (memory check)
+POST http://127.0.0.1:8001/chat/
+Content-Type: application/json
+
+#"session_id": "PASTE_SESSION_ID_HERE"
+{
+  "question": "What did I just ask?",
+
+  "session_id": "e66176bc-6212-4cc2-b63e-5312e194559e"
 }

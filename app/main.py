@@ -1,8 +1,11 @@
+# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import chat
 import os
 import uvicorn
+from app.services.data_ingestion import ingest_tours
+from app.utils.logger import logger
 
 app = FastAPI(title="Smart Travel AI Assistant")
 
@@ -29,6 +32,11 @@ def say_hello(name: str):
     return {"message": f"Hello, {name}! Welcome to your AI assistant."}
 
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8001)) # avoid conflict with Django
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+@app.on_event("startup")
+def startup_event():
+    logger.info("Starting app...")
+
+    try:
+        ingest_tours()
+    except Exception as e:
+        logger.error(f"[Startup Ingestion Failed]: {e}")
