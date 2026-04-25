@@ -68,7 +68,8 @@ def build_prompt(
     history: List[Dict],
     context_docs: List[Any],
     summary: str = "",
-    session_info: Dict = None
+    session_info: Dict = None,
+    intent: str = "default"
 ) -> str:
 
     session_info = session_info or {}
@@ -84,7 +85,19 @@ def build_prompt(
         "Do NOT guess missing information.\n"
         "If missing, say: 'I don't have enough information from the database.'\n"
     )
+    # =========================
+    # 🎯 INTENT CONTROL LAYER
+    # =========================
+    prompt.append(
+        f"""Intent: {intent}
 
+    FORMAT RULES:
+    - If intent = itinerary → structured day-wise plan
+    - If intent = list → bullet points only
+    - If intent = explain → clear paragraph explanation
+    - If intent = default → concise helpful answer
+    """
+    )
     prompt.append(
         "IMPORTANT:\n"
         "- If the user asks about previous conversation, use chat history.\n"

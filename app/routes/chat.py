@@ -3,11 +3,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from uuid import uuid4
 from typing import Optional
-
-from app.utils.vector_db import query_similar_docs
 from app.utils.llm_helpers import generate_answer, build_prompt
 from app.memory.chat_memory import ChatMemory
 from app.utils.logger import logger
+from app.utils.intent import detect_intent
+from app.utils.vector_db import query_with_scores
+from app.utils.preferences import extract_preferences
 
 chat_memory = ChatMemory()
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -41,6 +42,10 @@ def chat_endpoint(request: ChatRequest):
     session_id = request.session_id or str(uuid4())
     question = request.question.strip()
 
+    # INTENT DETECTION
+    intent = detect_intent(question)
+    prefs = extract_preferences(question)
+
     try:
         # 🔍 Retrieval
         # =========================
@@ -50,7 +55,7 @@ def chat_endpoint(request: ChatRequest):
             docs = []  # ❌ disable RAG for meta questions
             logger.info(f"Meta question detected | session={session_id}")
         else:
-            docs = query_similar_docs(question, n_results=request.top_k)
+            docs = query_with_scores(question, n_results=request.top_k)
 
         if not docs:
             logger.warning(f"No context found | session={session_id}")
@@ -59,26 +64,29 @@ def chat_endpoint(request: ChatRequest):
         history = chat_memory.get_history(session_id)
         summary = chat_memory.get_summary(session_id)
         session_info = chat_memory.get_session_info(session_id)
-
+        context_texts = [d["content"] for d in docs if isinstance(d, dict)]
         # 🧩 Prompt
         prompt = build_prompt(
             question=question,
             history=history,
-            context_docs=docs,
+            context_docs=context_texts,
             summary=summary,
-            session_info=session_info
+            session_info=session_info,
+            intent=intent
         )
 
         # ⚡ LLM
         answer = generate_answer(prompt).strip()
 
         # 🛑 Safety
-        if len(answer) < 10 or "error" in answer.lower():
+        if not answer or len(answer.strip()) < 20:
             answer = "I don't have enough information from the database."
 
         # 💾 Memory
         chat_memory.add_message(session_id, "user", question)
         chat_memory.add_message(session_id, "assistant", answer)
+        if prefs:
+            chat_memory.update_session_info(session_id, "interests", prefs)
 
         logger.info(f"Chat success | session={session_id}")
 
@@ -88,7 +96,8 @@ def chat_endpoint(request: ChatRequest):
             "question": question,
             "answer": answer,
             "retrieved_docs": docs,
-            "history_length": len(chat_memory.get_history(session_id))
+            "history_length": len(chat_memory.get_history(session_id)),
+            "intent": intent
         }
 
     except Exception as e:

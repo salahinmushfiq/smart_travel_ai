@@ -94,22 +94,24 @@ def filter_low_quality_docs(docs: List[str]) -> List[str]:
 # =========================
 # MAIN QUERY (USED BY CHAT)
 # =========================
-def query_similar_docs(query: str, n_results: int = 3) -> List[str]:
-    try:
-        query_embedding = embed_documents([query]).cpu().detach().numpy()
-
-        results = collection.query(
-            query_embeddings=query_embedding,
-            n_results=n_results
-        )
-
-        docs = results.get("documents", [[]])[0]
-
-        return filter_low_quality_docs(docs)
-
-    except Exception as e:
-        logger.error(f"[VectorDB Query Error]: {e}")
-        return []
+# def query_similar_docs(query: str, n_results: int = 3) -> List[str]:
+#     try:
+#         query_embedding = embed_documents([query]).cpu().detach().numpy()
+#
+#         results = collection.query(
+#             query_embeddings=query_embedding,
+#             n_results=n_results,
+#             include=["distances", "documents"]
+#         )
+#
+#         docs = results.get("documents", [[]])[0]
+#         distances = results.get("distances", [[]])[0]
+#
+#         return filter_low_quality_docs(docs)
+#
+#     except Exception as e:
+#         logger.error(f"[VectorDB Query Error]: {e}")
+#         return []
 
 
 # =========================
@@ -129,7 +131,10 @@ def query_with_scores(query: str, n_results: int = 3):
         distances = results.get("distances", [[]])[0]
 
         return [
-            {"content": doc, "score": round(1 - dist, 4)}
+            {
+                "content": doc,
+                "score": round(1 - dist, 4)  # similarity score
+            }
             for doc, dist in zip(docs, distances)
         ]
 
