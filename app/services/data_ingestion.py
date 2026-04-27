@@ -1,9 +1,13 @@
 # app/services/data_ingestion.py
 import requests
+import os
 from app.utils.vector_db import add_documents_to_db, delete_by_source
 from app.utils.logger import logger
+from dotenv import load_dotenv
 
-DJANGO_API_URL = "http://localhost:8000/api/tours/public/"
+load_dotenv()
+DJANGO_API_URL_PREFIX = os.getenv("DJANGO_API_URL")
+DJANGO_API_URL = DJANGO_API_URL_PREFIX+"/api/tours/public/"
 
 
 def fetch_tours():
