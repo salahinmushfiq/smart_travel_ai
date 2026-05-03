@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from uuid import uuid4
 from typing import Optional
+import traceback
 from app.utils.llm_helpers import generate_answer, build_prompt
 from app.memory.chat_memory import ChatMemory
 from app.utils.logger import logger
@@ -20,6 +21,9 @@ class ChatRequest(BaseModel):
     top_k: int = 3
 
 
+# =========================
+# META QUESTION DETECTION
+# =========================
 def is_meta_question(question: str) -> bool:
     q = question.lower()
 
@@ -34,6 +38,9 @@ def is_meta_question(question: str) -> bool:
     return any(t in q for t in triggers)
 
 
+# =========================
+# CHAT ENDPOINT
+# =========================
 @router.post("/")
 def chat_endpoint(request: ChatRequest):
     if not request.question or not request.question.strip():
@@ -75,10 +82,18 @@ def chat_endpoint(request: ChatRequest):
             intent=intent
         )
 
-        # ⚡ LLM
+        logger.info(f"Prompt built successfully")
+
+        # =========================
+        # LLM GENERATION
+        # =========================
         answer = generate_answer(prompt).strip()
 
-        # 🛑 Safety
+        logger.info(f"LLM response generated")
+
+        # =========================
+        # SAFETY FALLBACK
+        # =========================
         if not answer or len(answer.strip()) < 20:
             answer = "I don't have enough information from the database."
 
@@ -102,7 +117,7 @@ def chat_endpoint(request: ChatRequest):
 
     except Exception as e:
         logger.error(f"[Chat Error]: {e}")
-
+        traceback.print_exc()
         return {
             "status": "error",
             "session_id": session_id,

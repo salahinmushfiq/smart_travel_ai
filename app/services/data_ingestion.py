@@ -2,8 +2,9 @@
 import requests
 from app.utils.vector_db import add_documents_to_db, delete_by_source
 from app.utils.logger import logger
+import os
 
-DJANGO_API_URL = "http://localhost:8000/api/tours/public/"
+DJANGO_API_URL = os.getenv("DJANGO_API_URL", "http://localhost:8000/api/tours/public/")
 
 
 def fetch_tours():
@@ -26,15 +27,15 @@ def transform_tours_to_docs(tours):
 
     for tour in tours:
         content = f"""
-Tour: {tour.get('title', '')}
-Category: {tour.get('category', '')}
-Route: {tour.get('start_location', '')} → {tour.get('end_location', '')}
-Price: {tour.get('price', 0)} BDT
-Date: {tour.get('start_date', '')}
-
-Description:
-{tour.get('description', '')}
-""".strip()
+        Tour: {tour.get('title', '')}
+        Category: {tour.get('category', '')}
+        Route: {tour.get('start_location', '')} → {tour.get('end_location', '')}
+        Price: {tour.get('price', 0)} BDT
+        Date: {tour.get('start_date', '')}
+        
+        Description:
+        {tour.get('description', '')}
+        """.strip()
 
         docs.append({
             "id": f"tour_{tour.get('id')}",
