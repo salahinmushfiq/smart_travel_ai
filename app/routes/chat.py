@@ -1,4 +1,5 @@
 # app/routes/chat.py
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from uuid import uuid4
@@ -11,9 +12,9 @@ from app.utils.intent import detect_intent
 from app.utils.vector_db import query_with_scores
 from app.utils.preferences import extract_preferences
 
-# 🆕 TOOLING
 from app.tools.tool_router import detect_tool
-from app.tools.registry import TOOLS
+from app.tools.tool_executor import execute_tool
+
 
 chat_memory = ChatMemory()
 
@@ -44,98 +45,80 @@ def is_meta_question(question: str) -> bool:
 
 
 # =====================================
+# MEMORY HELPER (NEW SMALL CLEANUP)
+# =====================================
+def save_turn(session_id: str, user_msg: str, assistant_msg: str):
+    chat_memory.add_message(session_id, "user", user_msg)
+    chat_memory.add_message(session_id, "assistant", assistant_msg)
+
+
+# =====================================
 # MAIN CHAT ENDPOINT
 # =====================================
 @router.post("/")
 def chat_endpoint(request: ChatRequest):
 
     if not request.question or not request.question.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Question cannot be empty"
-        )
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     session_id = request.session_id or str(uuid4())
-
     question = request.question.strip()
 
-    # =====================================
-    # INTENT + PREFERENCES
-    # =====================================
     intent = detect_intent(question)
-
     prefs = extract_preferences(question)
 
-    # =====================================
-    # TOOL ROUTING
-    # =====================================
     tool_decision = detect_tool(question)
 
     logger.info(
-        f"[Tool Router] "
-        f"mode={tool_decision['mode']} "
-        f"tool={tool_decision['tool']}"
+        f"[Tool Router] mode={tool_decision['mode']} tool={tool_decision['tool']}"
     )
 
     try:
 
         # =====================================
-        # TOOL EXECUTION PATH
+        # TOOL PATH
         # =====================================
         if tool_decision["mode"] == "tool":
 
             tool_name = tool_decision["tool"]
-
             tool_params = tool_decision["params"]
 
-            tool_data = TOOLS.get(tool_name)
-
-            if not tool_data:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Tool '{tool_name}' not registered."
+            try:
+                tool_result = execute_tool(
+                    tool_name=tool_name,
+                    params=tool_params
                 )
 
-            tool_function = tool_data["function"]
+            except ValueError as e:
+                logger.error(f"[Tool Validation Error] {e}")
+                return {
+                    "status": "error",
+                    "session_id": session_id,
+                    "answer": str(e)
+                }
 
-            # 🧠 EXECUTE TOOL
-            tool_result = tool_function(**tool_params)
+            except Exception as e:
+                logger.error(f"[Tool Execution Error] {e}")
+                return {
+                    "status": "error",
+                    "session_id": session_id,
+                    "answer": "Tool execution failed."
+                }
 
-            # 💾 MEMORY
-            chat_memory.add_message(
+            save_turn(
                 session_id,
-                "user",
-                question
-            )
-
-            chat_memory.add_message(
-                session_id,
-                "assistant",
-                str(tool_result)
-            )
-
-            logger.info(
-                f"[Tool Executed] "
-                f"tool={tool_name}"
+                question,
+                tool_result["message"]
             )
 
             return {
                 "status": "success",
                 "session_id": session_id,
                 "question": question,
-
-                # frontend compatibility
-                "answer": str(tool_result),
-
+                "answer": tool_result["message"],
                 "retrieved_docs": [],
-
-                "history_length": len(
-                    chat_memory.get_history(session_id)
-                ),
-
+                "history_length": len(chat_memory.get_history(session_id)),
                 "intent": f"tool:{tool_name}",
-
-                # 🆕 structured tool metadata
                 "tool_used": tool_name,
                 "tool_result": tool_result
             }
@@ -144,35 +127,10 @@ def chat_endpoint(request: ChatRequest):
         # RAG PATH
         # =====================================
         if is_meta_question(question):
-
             docs = []
-
-            logger.info(
-                f"Meta question detected "
-                f"| session={session_id}"
-            )
-
+            logger.info(f"Meta question detected | session={session_id}")
         else:
-
-            docs = query_with_scores(
-                question,
-                n_results=request.top_k
-            )
-
-        if not docs:
-            logger.warning(
-                f"No context found "
-                f"| session={session_id}"
-            )
-
-        # =====================================
-        # MEMORY
-        # =====================================
-        history = chat_memory.get_history(session_id)
-
-        summary = chat_memory.get_summary(session_id)
-
-        session_info = chat_memory.get_session_info(session_id)
+            docs = query_with_scores(question, n_results=request.top_k)
 
         context_texts = [
             d["content"]
@@ -180,9 +138,10 @@ def chat_endpoint(request: ChatRequest):
             if isinstance(d, dict)
         ]
 
-        # =====================================
-        # PROMPT BUILDING
-        # =====================================
+        history = chat_memory.get_history(session_id)
+        summary = chat_memory.get_summary(session_id)
+        session_info = chat_memory.get_session_info(session_id)
+
         prompt = build_prompt(
             question=question,
             history=history,
@@ -192,47 +151,15 @@ def chat_endpoint(request: ChatRequest):
             intent=intent
         )
 
-        # =====================================
-        # LLM GENERATION
-        # =====================================
         answer = generate_answer(prompt).strip()
 
-        # =====================================
-        # SAFETY FALLBACK
-        # =====================================
-        if not answer or len(answer.strip()) < 20:
+        if not answer or len(answer) < 20:
+            answer = "I don't have enough information from the database."
 
-            answer = (
-                "I don't have enough information "
-                "from the database."
-            )
-
-        # =====================================
-        # MEMORY STORAGE
-        # =====================================
-        chat_memory.add_message(
-            session_id,
-            "user",
-            question
-        )
-
-        chat_memory.add_message(
-            session_id,
-            "assistant",
-            answer
-        )
+        save_turn(session_id, question, answer)
 
         if prefs:
-            chat_memory.update_session_info(
-                session_id,
-                "interests",
-                prefs
-            )
-
-        logger.info(
-            f"Chat success "
-            f"| session={session_id}"
-        )
+            chat_memory.update_session_info(session_id, "interests", prefs)
 
         return {
             "status": "success",
@@ -240,16 +167,12 @@ def chat_endpoint(request: ChatRequest):
             "question": question,
             "answer": answer,
             "retrieved_docs": docs,
-            "history_length": len(
-                chat_memory.get_history(session_id)
-            ),
+            "history_length": len(chat_memory.get_history(session_id)),
             "intent": intent
         }
 
     except Exception as e:
-
         logger.error(f"[Chat Error]: {e}")
-
         return {
             "status": "error",
             "session_id": session_id,
